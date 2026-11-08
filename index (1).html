@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระเบิดบ้าน 20 หลัง 💥</title>
+<style>
+:root{--bg:#fff1dc;--fg:#3b1d0b;--hud:rgba(255,255,255,.88);--btn:#ff4d2e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1226;--fg:#fff3e0;--hud:rgba(44,28,66,.88)}}
+:root[data-theme="dark"]{--bg:#1b1226;--fg:#fff3e0;--hud:rgba(44,28,66,.88)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:"Noto Sans Thai",system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+body{position:relative}
+canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
+.pill,button{background:var(--hud);color:var(--fg);border:0;border-radius:999px;padding:8px 14px;font:700 16px inherit;font-family:inherit}
+.pill:empty{display:none}
+#hud .b{pointer-events:auto;display:flex;gap:6px}
+button{cursor:pointer}
+button:disabled{opacity:.4}
+#mg.on{background:var(--btn);color:#fff;animation:p .5s infinite alternate}
+@keyframes p{to{transform:scale(1.1)}}
+@media (prefers-reduced-motion:reduce){#mg.on{animation:none}}
+#hint{position:absolute;left:0;right:0;bottom:18px;text-align:center;font-weight:700;color:#fff;text-shadow:0 2px 6px #000;pointer-events:none}
+#end{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+#end div{background:var(--bg);color:var(--fg);border-radius:24px;padding:26px 30px;text-align:center;max-width:80%}
+#end h1{margin:0 0 6px;font-size:28px}
+#end p{margin:4px 0 16px}
+#end button{background:var(--btn);color:#fff;font-size:18px;padding:12px 24px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="pill">🏠 <span id="n">0</span>/20</div>
+  <div class="pill" id="cb"></div>
+  <div class="b"><button id="mg">☢️ ×2</button><button id="sd">🔊</button></div>
+</div>
+<div id="hint">แตะที่ไหนก็ได้เพื่อทิ้งระเบิด 💣</div>
+<div id="end"><div><h1>ครบ 20 หลังแล้ว! 🎉</h1><p>ใจเบาขึ้นยัง? 💕</p><p id="tm"></p><button id="re">ระเบิดใหม่ 🔄</button></div></div>
+<script>
+const $=id=>document.getElementById(id),cv=$('c'),g=cv.getContext('2d');
+let W,H,D,S,CH,TOP=64,cols,houses=[],parts=[],rings=[],bombs=[],texts=[],scars=[],shake=0,flash=0,done=0,combo=0,comboT=0,t0=0,over=false,mega=2,armed=false,snd=true,AC,last=0;
+const stars=Array.from({length:50},()=>[Math.random(),Math.random()]);
+const PAL=['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9f1c','#2ec4b6','#f15bb5'];
+const WORDS=['ตูม!','ปัง!','เปรี้ยง!','โครม!','ตู้มมม!','บึ้ม!'];
+const rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[(Math.random()*a.length)|0];
+function shade(c,k){const n=parseInt(c.slice(1),16);return `rgb(${((n>>16)*k)|0},${(((n>>8)&255)*k)|0},${((n&255)*k)|0})`}
+function layout(){
+  W=cv.clientWidth;H=cv.clientHeight;D=Math.min(devicePixelRatio||1,2);
+  cv.width=W*D;cv.height=H*D;g.setTransform(D,0,0,D,0,0);
+  cols=W<H?4:5;const rows=20/cols,cw=W/cols;CH=(H-TOP-30)/rows;S=Math.min(cw,CH)*.8;
+  houses.forEach((h,i)=>{h.x=(i%cols+.5)*cw;h.y=TOP+((i/cols|0)+.5)*CH;h.s=S});
+}
+function hud(){$('n').textContent=done;$('cb').textContent=combo>1?`คอมโบ ×${combo} 🔥`:''}
+function mgl(){const b=$('mg');b.textContent=`☢️ ×${mega}`;b.className=armed?'on':'';b.disabled=mega<1&&!armed}
+function init(){
+  houses=Array.from({length:20},()=>({c:pick(PAL),alive:true,wob:0,ph:rnd(0,6),rub:[]}));
+  parts=[];rings=[];bombs=[];texts=[];scars=[];done=0;combo=0;comboT=0;mega=2;armed=false;t0=0;over=false;
+  layout();hud();mgl();$('end').style.display='none';$('hint').style.display='block';
+}
+function sound(r){
+  if(!snd||!AC)return;
+  try{
+    const n=AC.sampleRate*.5|0,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2);
+    const s=AC.createBufferSource(),f=AC.createBiquadFilter(),v=AC.createGain();
+    s.buffer=b;f.type='lowpass';f.frequency.value=250+r*3;v.gain.value=.6;
+    s.connect(f);f.connect(v);v.connect(AC.destination);s.start();
+  }catch(e){}
+}
+function kill(h){
+  if(!h.alive)return;
+  h.alive=false;done++;combo++;comboT=.9;
+  h.rub=Array.from({length:6},()=>({dx:rnd(-.4,.3),w:rnd(.06,.16),h:rnd(.04,.14),c:Math.random()<.5?shade(h.c,.5):'#444'}));
+  for(let i=0;i<14;i++)parts.push({x:h.x,y:h.y,vx:rnd(-6,6),vy:rnd(-10,-2),l:1,d:rnd(.008,.014),s:rnd(5,12)*(S/70),c:i%3?h.c:shade(h.c,.5),g:.4,rot:rnd(0,6),vr:rnd(-.3,.3),k:'c'});
+  texts.push({x:h.x,y:h.y-S*.3,t:pick(WORDS),l:1});
+  setTimeout(()=>boom(h.x,h.y,S*1.1,true),110);
+  hud();if(done===20)win();
+}
+function boom(x,y,r,chain){
+  rings.push({x,y,r:r*.2,R:r,a:1});
+  scars.push({x,y,r:r*.45});if(scars.length>40)scars.shift();
+  for(let i=0;i<20;i++){const a=rnd(0,6.28),v=rnd(1,6)*(r/80);parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1,l:1,d:rnd(.02,.04),s:rnd(6,16)*(r/90),c:['#fff176','#ffb300','#ff5722','#ff1744'][i%4],g:-.02,k:'f'})}
+  for(let i=0;i<6;i++)parts.push({x:x+rnd(-r/3,r/3),y,vx:rnd(-1,1),vy:rnd(-2,-.5),l:.7,d:.008,s:rnd(10,22)*(r/90),c:'#555',g:-.03,k:'m'});
+  shake=Math.min(28,shake+r/7);flash=Math.min(.6,flash+.3);sound(r);
+  if(navigator.vibrate)try{navigator.vibrate(25)}catch(e){}
+  houses.forEach(h=>{
+    if(!h.alive)return;
+    const d=Math.hypot(h.x-x,h.y-y);
+    if(d<r+S*.3&&(!chain||Math.random()<.7))kill(h);else if(d<r*2)h.wob=1;
+  });
+}
+function fw(x,y){
+  const c=pick(PAL);sound(50);
+  for(let i=0;i<40;i++){const a=rnd(0,6.28),v=rnd(2,7);parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,d:.015,s:rnd(3,6),c,g:.08,k:'f'})}
+}
+function win(){
+  setTimeout(()=>{
+    over=true;$('tm').textContent=`ใช้เวลา ${((performance.now()-t0)/1000).toFixed(1)} วินาที`;
+    $('end').style.display='flex';
+    let n=0;const iv=setInterval(()=>{fw(rnd(.1,.9)*W,rnd(.1,.5)*H);if(++n>14)clearInterval(iv)},250);
+  },900);
+}
+function drop(x,y){
+  $('hint').style.display='none';
+  if(!t0)t0=performance.now();
+  try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume()}catch(e){}
+  let big=false;if(armed&&mega>0){big=true;mega--;armed=false;mgl()}
+  bombs.push({x,y:-30,ty:y,vy:12,big});
+}
+function drawHouse(h,tm){
+  const s=h.s,x=h.x+Math.sin(tm*40+h.ph)*h.wob*3,y=h.y,b=y+s*.4;
+  g.fillStyle=shade(h.c,.4);g.fillRect(x+s*.2,y-s*.4,s*.1,s*.22);
+  g.fillStyle=h.c;g.fillRect(x-s*.4,y-s*.05,s*.8,s*.45);
+  g.fillStyle=shade(h.c,.55);g.beginPath();g.moveTo(x-s*.52,y-s*.03);g.lineTo(x,y-s*.46);g.lineTo(x+s*.52,y-s*.03);g.fill();
+  g.fillStyle='#5b3a29';g.fillRect(x-s*.08,b-s*.24,s*.16,s*.24);
+  g.fillStyle='#fff3a3';g.fillRect(x-s*.3,y+s*.04,s*.15,s*.15);g.fillRect(x+s*.15,y+s*.04,s*.15,s*.15);
+}
+function drawRuin(h){
+  const s=h.s,b=h.y+s*.4-s*.04;
+  g.fillStyle='#2b2b2b';g.beginPath();g.ellipse(h.x,b,s*.5,s*.12,0,0,6.3);g.fill();
+  h.rub.forEach(r=>{g.fillStyle=r.c;g.fillRect(h.x+r.dx*s,b-r.h*s,r.w*s,r.h*s)});
+}
+function update(k,dt){
+  bombs=bombs.filter(b=>{
+    b.y+=b.vy*k;b.vy+=.6*k;
+    if(b.y>=b.ty){boom(b.x,b.ty,b.big?Math.min(W,H)*.4:S*.9,false);return false}
+    return true;
+  });
+  parts=parts.filter(p=>{p.x+=p.vx*k;p.y+=p.vy*k;p.vy+=p.g*k;p.l-=p.d*k;if(p.k==='c')p.rot+=p.vr*k;if(p.k==='m')p.s+=.3*k;return p.l>0&&p.y<H+50});
+  rings=rings.filter(r=>{r.r+=(r.R-r.r)*.2*k;r.a-=.05*k;return r.a>0});
+  texts=texts.filter(t=>{t.y-=.8*k;t.l-=.015*k;return t.l>0});
+  houses.forEach(h=>{
+    if(!h.alive){
+      if(Math.random()<.12*k)parts.push({x:h.x+rnd(-.3,.3)*S,y:h.y+S*.35,vx:rnd(-.3,.3),vy:rnd(-1.5,-.6),l:.8,d:.03,s:rnd(3,6)*(S/70),c:Math.random()<.5?'#ff9100':'#ff3d00',g:-.01,k:'f'});
+      if(Math.random()<.04*k)parts.push({x:h.x+rnd(-.3,.3)*S,y:h.y+S*.3,vx:rnd(-.3,.3),vy:-1,l:.6,d:.01,s:rnd(6,12)*(S/70),c:'#555',g:-.02,k:'m'});
+    }else if(h.wob>0)h.wob=Math.max(0,h.wob-.03*k);
+  });
+  if(comboT>0){comboT-=dt;if(comboT<=0){combo=0;hud()}}
+  shake*=Math.pow(.9,k);flash*=Math.pow(.85,k);
+}
+function draw(tm){
+  g.save();
+  if(shake>.5)g.translate(rnd(-shake,shake),rnd(-shake,shake));
+  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#1d1b4b');gr.addColorStop(.6,'#7b2d6b');gr.addColorStop(1,'#ff8a4c');
+  g.fillStyle=gr;g.fillRect(-40,-40,W+80,H+80);
+  g.fillStyle='#fff';stars.forEach(s=>g.fillRect(s[0]*W,s[1]*H*.5,2,2));
+  for(let r=0;r<20/cols;r++){const y=TOP+(r+.5)*CH+S*.36;g.fillStyle='#1f5f3b';g.fillRect(-40,y,W+80,S*.16);g.fillStyle='#2f8f58';g.fillRect(-40,y,W+80,3)}
+  g.fillStyle='rgba(0,0,0,.3)';scars.forEach(s=>{g.beginPath();g.ellipse(s.x,s.y,s.r,s.r*.5,0,0,6.3);g.fill()});
+  houses.forEach(h=>h.alive?drawHouse(h,tm):drawRuin(h));
+  bombs.forEach(b=>{g.font=`${S*(b.big?.9:.5)}px serif`;g.textAlign='center';g.fillText(b.big?'☢️':'💣',b.x,b.y)});
+  rings.forEach(r=>{g.strokeStyle=`rgba(255,200,80,${r.a})`;g.lineWidth=8*r.a;g.beginPath();g.arc(r.x,r.y,r.r,0,6.3);g.stroke()});
+  parts.forEach(p=>{
+    g.globalAlpha=Math.max(0,p.l);
+    if(p.k==='c'){g.save();g.translate(p.x,p.y);g.rotate(p.rot);g.fillStyle=p.c;g.fillRect(-p.s/2,-p.s/2,p.s,p.s);g.restore()}
+    else{g.fillStyle=p.c;g.beginPath();g.arc(p.x,p.y,Math.max(.1,p.k==='f'?p.s*p.l:p.s),0,6.3);g.fill()}
+  });
+  g.globalAlpha=1;
+  g.font=`800 ${S*.28}px "Noto Sans Thai",sans-serif`;g.textAlign='center';g.lineWidth=4;g.strokeStyle='#3b1d0b';
+  texts.forEach(t=>{g.globalAlpha=Math.max(0,t.l);g.strokeText(t.t,t.x,t.y);g.fillStyle='#fff176';g.fillText(t.t,t.x,t.y)});
+  g.globalAlpha=1;
+  if(flash>.02){g.fillStyle=`rgba(255,255,255,${flash})`;g.fillRect(-40,-40,W+80,H+80)}
+  g.restore();
+}
+function loop(ts){const dt=Math.min((ts-last)/1000,.05);last=ts;update(dt*60,dt);draw(ts/1000);requestAnimationFrame(loop)}
+cv.addEventListener('pointerdown',e=>{if(over)return;const r=cv.getBoundingClientRect();drop(e.clientX-r.left,e.clientY-r.top)});
+$('mg').onclick=()=>{if(mega>0){armed=!armed;mgl()}};
+$('sd').onclick=()=>{snd=!snd;$('sd').textContent=snd?'🔊':'🔇'};
+$('re').onclick=init;
+addEventListener('resize',layout);
+init();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
